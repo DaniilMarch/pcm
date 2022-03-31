@@ -1,18 +1,7 @@
-use std::f64::consts::PI;
 use std::u16;
-use std::io::prelude::*;
 use std::fs::File;
-use std::path::Path;
 use byteorder::{LittleEndian, WriteBytesExt};
-
-const SAMPLING_RATE: u32 = 44_100; //Hz
-const SAMPLING_INTERVAL: f64 = 1.0 / SAMPLING_RATE as f64;
-const A440_RATE: u32 = 440; //Hz
-const SAMPLE_SIZE: u32 = 16; //bits
-const RANGE: f64 = 2.0;
-const AMPLITUDE: f64 = RANGE / 2.0;
-const WAVE_DURATION: f64 = 1.0 / A440_RATE as f64;
-const SINE_WAVE_RATE: f64 = 2.0 * PI / WAVE_DURATION;
+use pcm::prelude::*;
 
 fn main() {
     let mut t: f64 = 0.0;
