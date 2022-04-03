@@ -2,6 +2,7 @@ use std::u16;
 use std::fs::File;
 use byteorder::{LittleEndian, WriteBytesExt};
 use pcm::prelude::*;
+use pcm::{write_to_wav};
 
 fn main() {
     let mut t: f64 = 0.0;
@@ -12,9 +13,7 @@ fn main() {
         t += SAMPLING_INTERVAL;
     }
 
-    let mut file = File::create("test.pcm").expect("Cant create file");
-    for i in samples {
-        let as_u16 = ((i / RANGE) * u16::MAX as f64) as u16;
-        file.write_u16::<LittleEndian>(as_u16).expect("Cant write to file");
-    }
+    let mut file = File::create("test.wav").expect("Cant create file");
+    let mut samples_u16 = samples.into_iter().map(|x| ((x / RANGE) * u16::MAX as f64) as u16).collect();
+    write_to_wav(file, samples_u16);
 }
