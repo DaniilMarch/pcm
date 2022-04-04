@@ -4,7 +4,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use pcm::prelude::*;
 use pcm::{write_to_wav};
 
-//test
+//test3
 fn main() {
     let mut t: f64 = 0.0;
     let mut samples: Vec<f64> = vec![];
