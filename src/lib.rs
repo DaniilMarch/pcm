@@ -1,21 +1,106 @@
-use std::fs::File;
-use byteorder::{LittleEndian, WriteBytesExt, BigEndian};
-use std::io::Write;
+use byteorder::{LittleEndian, WriteBytesExt};
+use std::f64::consts::PI;
+use std::io::{BufWriter, Error, Write};
 
-pub mod prelude {
-    use std::f64::consts::PI;
-    pub const SAMPLING_RATE: u32 = 44_100; //Hz
-    pub const SAMPLING_INTERVAL: f64 = 1.0 / SAMPLING_RATE as f64;
-    pub const A440_RATE: u32 = 440; //Hz
-    pub const SAMPLE_SIZE: u32 = 16; //bits
-    pub const RANGE: f64 = 2.0;
-    pub const AMPLITUDE: f64 = RANGE / 2.0;
-    pub const WAVE_DURATION: f64 = 1.0 / A440_RATE as f64;
-    pub const SINE_WAVE_RATE: f64 = 2.0 * PI / WAVE_DURATION;
+pub struct AudioParams {
+    sample_rate: u32,
+    bits_per_sample: u32,
+    number_of_channels: u32,
+    sampling_interval: f64,
+    range: f64,
+    amplitude: f64,
 }
-use prelude::*;
 
-/* 
+impl AudioParams {
+    pub fn new(
+        sample_rate: u32,
+        bits_per_sample: u32,
+        number_of_channels: u32,
+        range: f64,
+    ) -> AudioParams {
+        AudioParams {
+            sample_rate,
+            bits_per_sample,
+            number_of_channels,
+            range,
+            sampling_interval: 1.0 / sample_rate as f64,
+            amplitude: range / 2.0,
+        }
+    }
+
+    pub fn get_amplitude(&self) -> f64 {
+        self.amplitude
+    }
+
+    pub fn get_sampling_interval(&self) -> f64 {
+        self.sampling_interval
+    }
+
+    pub fn get_range(&self) -> f64 {
+        self.range
+    }
+
+    pub fn get_sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    pub fn get_number_of_channels(&self) -> u32 {
+        self.number_of_channels
+    }
+
+    pub fn get_bits_per_sample(&self) -> u32 {
+        self.bits_per_sample
+    }
+}
+
+#[allow(dead_code)]
+enum Notes {
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+}
+
+#[allow(dead_code)]
+enum NoteAlter {
+    Sharp,
+    Flat,
+}
+
+#[allow(dead_code)]
+pub struct Note {
+    rate: u32,
+    duration: f64,
+    frequency: f64,
+}
+
+#[allow(dead_code)]
+const ORIGIN_FREQUENCY: u32 = 440;
+impl Note {
+    pub fn new(rate: u32) -> Note {
+        let duration = 1.0 / rate as f64;
+        let frequency = 2.0 * PI / duration;
+
+        Note {
+            rate,
+            duration,
+            frequency,
+        }
+    }
+
+    pub fn get_frequency(&self) -> f64 {
+        self.frequency
+    }
+
+    pub fn calculate_distance() -> u32 {
+        1
+    }
+}
+
+/*
     WAV structure
     Endian      File offset (bytes)     Field Name      Field size (bytes)      Content
     big         0                       ChunkId         4                       "RIFF" in ASCII (0x52494646)
@@ -33,21 +118,31 @@ use prelude::*;
     little      40                      SubChunk2Size   4                       == NumSamples * NumChannels * BitsPerSample / 8
     little      44                      Data            *                       Actual sound data
 */
-pub fn write_to_wav(mut file: File, data: Vec<u16>) {
-    file.write_all(b"RIFF").expect("Failed to write RIFF header");
-    file.write_u32::<LittleEndian>(36 + data.len() as u32 * 1 * 2).expect("Failed to write"); //36 + NumSamples (data.len()) * NumChannels (1, mono for now) * BitsPerSample / 8 (16 / 8 = 2)
-    file.write_all(b"WAVE").expect("Failed to write WAVE header");
-    file.write_all(b"fmt ").expect("Failed to write fmt");
-    file.write_u32::<LittleEndian>(16).expect("Failed to write SubChunk1Size");
-    file.write_u16::<LittleEndian>(1).expect("Failed to write audio format");
-    file.write_u16::<LittleEndian>(1).expect("Failed to write num channels");
-    file.write_u32::<LittleEndian>(SAMPLING_RATE).expect("Failed to write sample rate");
-    file.write_u32::<LittleEndian>(SAMPLING_RATE * 1 * 2).expect("Failed to write byte rate");
-    file.write_u16::<LittleEndian>(1 * 2).expect("Failed to write block align");
-    file.write_u16::<LittleEndian>(16).expect("Failed to write bits per sample");
-    file.write_all(b"data").expect("Failed to write SubChunk2Id");
-    file.write_u32::<LittleEndian>(data.len() as u32 * 1 * 2).expect("Failed to write SubChunk2Size");
+
+const SUBCHUNK1_SIZE: u32 = 16;
+pub fn write_to_wav<T: Write>(out: T, params: AudioParams, data: Vec<u16>) -> Result<(), Error> {
+    let subchunk2_size =
+        data.len() as u32 * params.get_number_of_channels() * params.get_bits_per_sample();
+    let num_channels_bps_product =
+        params.get_number_of_channels() * params.get_bits_per_sample() / 8;
+
+    let mut writer = BufWriter::new(out);
+    writer.write_all(b"RIFF")?;
+    writer.write_u32::<LittleEndian>(36 + subchunk2_size)?; //36 + NumSamples (data.len()) * NumChannels (1, mono for now) * BitsPerSample / 8 (16 / 8 = 2)
+    writer.write_all(b"WAVE")?;
+    writer.write_all(b"fmt ")?;
+    writer.write_u32::<LittleEndian>(SUBCHUNK1_SIZE)?;
+    writer.write_u16::<LittleEndian>(1)?;
+    writer.write_u16::<LittleEndian>(params.get_number_of_channels() as u16)?;
+    writer.write_u32::<LittleEndian>(params.get_sample_rate())?;
+    writer.write_u32::<LittleEndian>(params.get_sample_rate() * num_channels_bps_product)?;
+    writer.write_u16::<LittleEndian>(num_channels_bps_product as u16)?;
+    writer.write_u16::<LittleEndian>(params.get_bits_per_sample() as u16)?;
+    writer.write_all(b"data")?;
+    writer.write_u32::<LittleEndian>(data.len() as u32 * num_channels_bps_product)?;
     for sample in data {
-        file.write_u16::<LittleEndian>(sample);
+        writer.write_u16::<LittleEndian>(sample)?;
     }
+    writer.flush()?;
+    Ok(())
 }

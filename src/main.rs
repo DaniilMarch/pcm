@@ -1,20 +1,27 @@
-use std::u16;
+#![warn(clippy::all, clippy::pedantic)]
+use pcm::{write_to_wav, AudioParams, Note};
 use std::fs::File;
-use byteorder::{LittleEndian, WriteBytesExt};
-use pcm::prelude::*;
-use pcm::{write_to_wav};
+use std::u16;
 
-//test3
 fn main() {
+    let params = AudioParams::new(44_100, 16, 1, 2.0);
+    let a440 = Note::new(440);
+
     let mut t: f64 = 0.0;
     let mut samples: Vec<f64> = vec![];
+    let amplitude = params.get_amplitude();
     while t < 1.5 {
-        let value = AMPLITUDE * (SINE_WAVE_RATE * t).sin() + AMPLITUDE;
+        let value = amplitude * (a440.get_frequency() * t).sin() + amplitude;
         samples.push(value);
-        t += SAMPLING_INTERVAL;
+        t += params.get_sampling_interval();
     }
 
-    let mut file = File::create("test.wav").expect("Cant create file");
-    let mut samples_u16 = samples.into_iter().map(|x| ((x / RANGE) * u16::MAX as f64) as u16).collect();
-    write_to_wav(file, samples_u16);
+    let file = File::create("test.wav").expect("Cant create file");
+    let samples_u16 = samples
+        .into_iter()
+        .map(|x| ((x / params.get_range()) * u16::MAX as f64) as u16)
+        .collect();
+    if let Err(why) = write_to_wav(file, params, samples_u16) {
+        println!("Failed to write to wav: {}", why);
+    }
 }
