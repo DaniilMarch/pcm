@@ -54,7 +54,8 @@ impl AudioParams {
 }
 
 #[allow(dead_code)]
-enum Notes {
+#[derive(Clone, Copy)]
+pub enum NoteLitera {
     A,
     B,
     C,
@@ -64,27 +65,61 @@ enum Notes {
     G,
 }
 
+impl From<NoteLitera> for i32 {
+    fn from(note: NoteLitera) -> i32 {
+        match note {
+            NoteLitera::C => -9,
+            NoteLitera::D => -7,
+            NoteLitera::E => -5,
+            NoteLitera::F => -4,
+            NoteLitera::G => -2,
+            NoteLitera::A => 0,
+            NoteLitera::B => 2,
+        }
+    }
+}
+
+
 #[allow(dead_code)]
-enum NoteAlter {
+pub enum NoteAlter {
     Sharp,
     Flat,
 }
 
-#[allow(dead_code)]
-pub struct Note {
-    rate: u32,
+pub struct NoteMusicalNotation {
+    litera: NoteLitera,
+    alter: Option<NoteAlter>,
+    octave: u32,
+}
+
+impl NoteMusicalNotation {
+    pub fn new(litera: NoteLitera, alter: Option<NoteAlter>, octave: u32) -> NoteMusicalNotation {
+        NoteMusicalNotation {
+            litera,
+            alter,
+            octave,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct NoteFrequencyParams {
+    rate: f64,
     duration: f64,
     frequency: f64,
 }
 
-#[allow(dead_code)]
-const ORIGIN_FREQUENCY: u32 = 440;
-impl Note {
-    pub fn new(rate: u32) -> Note {
-        let duration = 1.0 / rate as f64;
+const ORIGIN_FREQUENCY: f64 = 440.0;
+const ORIGIN_NOTE_LITERA: NoteLitera = NoteLitera::A;
+const ORIGIN_NOTE_OCTAVE: i32 = 4; //From fact that 'first' octave is actually fourth on piano keyboard counting from 0
+const ORIGIN_NOTE_VALUE: u8 = 0;
+
+impl NoteFrequencyParams {
+    pub fn new(rate: f64) -> NoteFrequencyParams {
+        let duration = 1.0 / rate;
         let frequency = 2.0 * PI / duration;
 
-        Note {
+        NoteFrequencyParams {
             rate,
             duration,
             frequency,
@@ -95,9 +130,36 @@ impl Note {
         self.frequency
     }
 
-    pub fn calculate_distance() -> u32 {
-        1
+    pub fn calculate_distance_from_origin(note_musical_notation: NoteMusicalNotation) -> i32 {
+        let litera_value = i32::from(note_musical_notation.litera);
+        let octave_distance = ORIGIN_NOTE_OCTAVE - note_musical_notation.octave as i32;
+        litera_value - 12 * octave_distance + if let Some(alter) = note_musical_notation.alter {
+            match alter {
+                NoteAlter::Flat => -1,
+                NoteAlter::Sharp => 1,
+            }
+        } else { 0 }
     }
+
+    pub fn new_from_musical_notation(note_musical_notation: NoteMusicalNotation) -> NoteFrequencyParams {
+        let distance_from_origin = NoteFrequencyParams::calculate_distance_from_origin(note_musical_notation);
+        let rate = ORIGIN_FREQUENCY * 2.0_f64.powf(distance_from_origin as f64 / 12.0);
+        NoteFrequencyParams::new(rate)
+    }
+}
+
+pub fn sample_note_sequence(audio_params: &AudioParams, notes: Vec<(NoteFrequencyParams, f64)>) -> Vec<f64> {
+    let mut result = vec![];
+    for (note, duration) in notes {
+        let mut t: f64 = 0.0;
+        let amplitude = audio_params.get_amplitude();
+        while t < duration {
+            let value = amplitude * (note.get_frequency() * t).sin() + amplitude;
+            result.push(value);
+            t += audio_params.get_sampling_interval();
+        }
+    }
+    result
 }
 
 /*
