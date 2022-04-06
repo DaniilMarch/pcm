@@ -208,3 +208,39 @@ pub fn write_to_wav<T: Write>(out: T, params: AudioParams, data: Vec<u16>) -> Re
     writer.flush()?;
     Ok(())
 }
+
+pub fn write_to_mp3<T: Write>(out: T) -> Result<(), Error>{
+    let mut writer = BufWriter::new(out);
+
+    let mut header: u32 = 0b1;
+    for i in 0..11 { //Mp3 sync word which is 1111_1111_1111
+        header <<= 1;
+        header |= 0b1;
+    }
+    header <<= 1;
+    header |= 0b1; //Set 13th bit 1 for MPEG version 1
+
+    header <<= 2;
+    header |= 0b1; //Set 14 and 15 to 01 for Layer III
+
+    header <<= 1;
+    header |= 0b1; //Set 16 bit for no error protection
+
+    header <<= 4;
+    header |= 0b1010; //Set 1010 for 160 bit rate
+
+    header <<= 4; // 00 for 44100 Hz sampling rate, 0 for frame padding, 0 for private bit
+    
+    header <<= 2;
+    header |= 0b1; //01 for Joint stereo
+
+    header <<= 2; // 00 for no mode extensions
+
+    header <<= 4; // 0 for not copy-righted, 0 for copy, 00 for emphasis
+
+    println!("{:b}", header);
+    
+
+    writer.flush()?;
+    Ok(())
+}

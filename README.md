@@ -4,7 +4,7 @@ cargo run
 ```
 TODO:
 * Refactor - code splitting, quantizer casting, etc.
-* Write to WAV instead of raw PCM
+* Write to WAV instead of raw PCM - done 
 * Add support for other encoders
 * Read notes from some kind of sheet
 * Add some common synthesizer features

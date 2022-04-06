@@ -1,6 +1,7 @@
 #![warn(clippy::all, clippy::pedantic)]
 use pcm::{
     write_to_wav,
+    write_to_mp3,
     sample_note_sequence,
     AudioParams, 
     NoteFrequencyParams, 
@@ -23,12 +24,12 @@ fn main() {
         (NoteFrequencyParams::new_from_musical_notation(NoteMusicalNotation::new(NoteLitera::C, None, 5)), 1.0),
     ]);
 
-    let file = File::create("test.wav").expect("Cant create file");
+    let file = File::create("/dev/null").expect("Cant create file");
     let samples_u16 = samples
         .into_iter()
         .map(|x| ((x / params.get_range()) * u16::MAX as f64) as u16)
-        .collect();
-    if let Err(why) = write_to_wav(file, params, samples_u16) {
+        .collect::<Vec<u16>>();
+    if let Err(why) = write_to_mp3(file) {
         println!("Failed to write to wav: {}", why);
     }
 }
