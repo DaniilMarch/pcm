@@ -1,6 +1,7 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::f64::consts::PI;
 use std::io::{BufWriter, Error, Write};
+use regex::Regex;
 
 pub struct AudioParams {
     sample_rate: u32,
@@ -54,7 +55,7 @@ impl AudioParams {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum NoteLitera {
     A,
     B,
@@ -81,11 +82,13 @@ impl From<NoteLitera> for i32 {
 
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub enum NoteAlter {
     Sharp,
     Flat,
 }
 
+#[derive(Debug)]
 pub struct NoteMusicalNotation {
     litera: NoteLitera,
     alter: Option<NoteAlter>,
@@ -105,8 +108,9 @@ impl NoteMusicalNotation {
 #[derive(Debug)]
 pub struct NoteFrequencyParams {
     rate: f64,
-    duration: f64,
+    length: f64,
     frequency: f64,
+    duration: f64,
 }
 
 const ORIGIN_FREQUENCY: f64 = 440.0;
@@ -115,19 +119,24 @@ const ORIGIN_NOTE_OCTAVE: i32 = 4; //From fact that 'first' octave is actually f
 const ORIGIN_NOTE_VALUE: u8 = 0;
 
 impl NoteFrequencyParams {
-    pub fn new(rate: f64) -> NoteFrequencyParams {
-        let duration = 1.0 / rate;
-        let frequency = 2.0 * PI / duration;
+    pub fn new(rate: f64, duration: f64) -> NoteFrequencyParams {
+        let length = 1.0 / rate;
+        let frequency = 2.0 * PI / length;
 
         NoteFrequencyParams {
             rate,
-            duration,
+            length,
             frequency,
+            duration,
         }
     }
 
     pub fn get_frequency(&self) -> f64 {
         self.frequency
+    }
+
+    pub fn get_duration(&self) -> f64 {
+        self.duration
     }
 
     pub fn calculate_distance_from_origin(note_musical_notation: NoteMusicalNotation) -> i32 {
@@ -141,19 +150,49 @@ impl NoteFrequencyParams {
         } else { 0 }
     }
 
-    pub fn new_from_musical_notation(note_musical_notation: NoteMusicalNotation) -> NoteFrequencyParams {
+    pub fn new_from_musical_notation(note_musical_notation: NoteMusicalNotation, duration: f64) -> NoteFrequencyParams {
         let distance_from_origin = NoteFrequencyParams::calculate_distance_from_origin(note_musical_notation);
         let rate = ORIGIN_FREQUENCY * 2.0_f64.powf(distance_from_origin as f64 / 12.0);
-        NoteFrequencyParams::new(rate)
+        NoteFrequencyParams::new(rate, duration)
+    }
+
+    pub fn from_tab_string(regex: &Regex, s: &str) -> NoteFrequencyParams {
+        let caps = regex.captures(s).unwrap();
+        let litera = caps.name("litera").unwrap().as_str();
+        let alter = caps.name("alter").unwrap().as_str();
+        let octave = caps.name("octave").unwrap().as_str().parse::<u32>().unwrap();
+        let duration = caps.name("duration").unwrap().as_str().parse::<f64>().unwrap();
+
+        let litera = match litera {
+            "A" => NoteLitera::A,
+            "B" => NoteLitera::B,
+            "C" => NoteLitera::C,
+            "D" => NoteLitera::D,
+            "E" => NoteLitera::E,
+            "F" => NoteLitera::F,
+            "G" => NoteLitera::G,
+            _ => panic!("Wrong note")
+        };
+        let alter = match alter {
+            "#" => Some(NoteAlter::Sharp),
+            "b" => Some(NoteAlter::Flat),
+            _ => None,
+        };
+
+
+        let musical_notation = NoteMusicalNotation::new(litera, alter, octave);
+        println!("{:?}", musical_notation);
+        println!("{}", duration);
+        NoteFrequencyParams::new_from_musical_notation(musical_notation, duration)
     }
 }
 
-pub fn sample_note_sequence(audio_params: &AudioParams, notes: Vec<(NoteFrequencyParams, f64)>) -> Vec<f64> {
+pub fn sample_note_sequence(audio_params: &AudioParams, notes: Vec<NoteFrequencyParams>) -> Vec<f64> {
     let mut result = vec![];
-    for (note, duration) in notes {
+    for note in notes {
         let mut t: f64 = 0.0;
         let amplitude = audio_params.get_amplitude();
-        while t < duration {
+        while t < note.get_duration() {
             let value = amplitude * (note.get_frequency() * t).sin() + amplitude;
             result.push(value);
             t += audio_params.get_sampling_interval();
